@@ -32,8 +32,8 @@ FORWARD_SPEED = 0.2
 COLOR_TOLERANCE = 20  # For color detection centering
 
 #Green color range      *** CHANGE TO GREEN ROOM COLOR ****
-GREEN_LOWER = np.array([0, 0, 0])
-GREEN_UPPER = np.array([0, 0, 0])
+GREEN_LOWER = np.array([73, 155, 94])
+GREEN_UPPER = np.array([70, 255, 100])
 
 class MazeNavigator(Node):
     def __init__(self, name):
