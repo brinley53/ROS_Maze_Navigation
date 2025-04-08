@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from graph import Graph
+
 import rclpy
 from rclpy.node import Node
 
@@ -17,21 +19,15 @@ from collections import deque   # BFS uses queue
 TURNING_SPEED = 0.5 / 100
 MOVING_SPEED = 0.1
 WALL_DISTANCE = 0.1  # Minimum distance from wall (meters) (4 in ~ 0.1 m)
-#ESCAPE_SPEED = 0.2  # Speed when escaping a wall
 TURN_SPEED = 0.5  # Speed for turning away from walls
-#CENTER_TOLERANCE = 20  # Error margin for "centered" opponent
-#ATTACK_SPEED = 0.6  # Increased attack speed
-#MIN_CONTOUR_SIZE = 200
 START_SPEED = 0.3  # New start speed for forward movement and drifting
-#DRIFT_TURN_SPEED = -1.0  # Angular speed for drifting right (negative for right turn)
-#DRIFT_DURATION = 1.5  # Time to complete the drift
 FORWARD_DISTANCE = 0.3  # Distance to move forward (meters)
 
 END_DISTANCE = 0.1 # Minimum distance from blue wall (meters) (4 in ~ 0.1 m)
 FORWARD_SPEED = 0.2
 COLOR_TOLERANCE = 20  # For color detection centering
 
-#BLUE color range      *** CHANGE TO BLUE ROOM COLOR ****
+#BLUE color range  
 BLUE_LOWER = np.array([73, 155, 94])
 BLUE_UPPER = np.array([70, 255, 100])
 
@@ -41,8 +37,6 @@ class MazeNavigator(Node):
         
         # ROS2 publishers and subscribers
         self.cmd_vel = self.create_publisher(Twist, 'controller/cmd_vel', 1)
-
-        #self.start = True
 
         self.camera_sub = self.create_subscription(
             Image, 'ascamera/camera_publisher/rgb0/image', 
@@ -374,7 +368,7 @@ class MazeNavigator(Node):
             largest = max(contours, key=cv2.contourArea)
             if cv2.contourArea(largest) > 500:
                 if self.lidar_data and min(self.lidar_data[:30] + self.lidar_data[330:]) < END_DISTANCE:
-                    self.at_end = True
+                    # self.at_end = True
                     twist = Twist()
                     self.cmd_vel.publish(twist)
                     self.get_logger().info("BLUE ROOM REACHED")
