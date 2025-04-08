@@ -57,52 +57,45 @@ class MazeNavigator(Node):
         
         # State management
         self.following_wall = False
-        self.wall_side = 'right'    # start at right for now
         self.first_attempt = True
-        self.start_time = time.time()
         self.mapping_complete = False
-        self.position_history = []
-        
-        
-        # Timing for attempts
-        self.start_time = time.time()
-        self.first_attempt_duration = 240  # 4 minutes
-        self.second_attempt_duration = 120  # 2 minutes
+        self.twist = Twist()
 
 
     def lidar_callback(self, data):
         """Process Lidar data for wall detection and navigation"""
         self.lidar_data = data.ranges
         
+        # this may be what's preventing startng
         if self.at_end:
             return
-            
-        twist = Twist()
         
-        if self.first_attempt and not self.mapping_complete:
-            # Mapping attempt
-            self.map_maze(twist)
-        else:
-            if self.first_attempt and not self.mapping_complete:
-                # Transition to execution phase
-                self.mapping_complete = True
-                self.plan_path()
-                self.first_attempt = False
+        self.map_maze()
+
+        # transfer this to a different file for second attempt
+        # else:
+        #     if self.first_attempt and not self.mapping_complete:
+        #         # Transition to execution phase
+        #         #  this stuff will never get called
+        #         self.mapping_complete = True
+        #         self.plan_path()
+        #         self.first_attempt = False
                 
-            # Actual attempt
-            self.follow_path(twist)
+        #     # Actual attempt
+        #     self.follow_path(twist)
             
-        self.cmd_vel.publish(twist)
+        
        
-    def map_maze(self, twist):
+    def map_maze(self):
         """First attempt: Explore maze and build graph"""
         if not self.following_wall:
+            # there is no find wall
             self.find_wall()
         else:
-            self.explore_with_wall_following(twist)
+            self.explore_with_wall_following()
             self.record_position()
         
-    def explore_with_wall_following(self, twist):
+    def explore_with_wall_following(self):
         """Use right hand wall method"""
         front_dist = min(min(self.lidar_data[:30]), min(self.lidar_data[330:]))
         right_dist = min(self.lidar_data[240:300])
@@ -110,19 +103,21 @@ class MazeNavigator(Node):
         
         # Wall following logic
         if front_dist < WALL_DISTANCE:
-            twist.angular.z = TURN_SPEED  # Turn left
-            twist.linear.x = 0.0
+            self.twist.angular.z = TURN_SPEED  # Turn left
+            self.twist.linear.x = 0.0
             self.record_turn('left')
         elif right_dist > WALL_DISTANCE * 1.5:
-            twist.angular.z = -TURN_SPEED * 0.5  # Turn right slightly
-            twist.linear.x = FORWARD_SPEED * 0.5
+            self.twist.angular.z = -TURN_SPEED * 0.5  # Turn right slightly
+            self.twist.linear.x = FORWARD_SPEED * 0.5
         elif right_dist < WALL_DISTANCE * 0.7:
-            twist.angular.z = TURN_SPEED * 0.3  # Turn left slightly
-            twist.linear.x = FORWARD_SPEED * 0.7
+            self.twist.angular.z = TURN_SPEED * 0.3  # Turn left slightly
+            self.twist.linear.x = FORWARD_SPEED * 0.7
         else:
-            twist.linear.x = FORWARD_SPEED  # Move forward
-            twist.angular.z = 0.0
+            self.twist.linear.x = FORWARD_SPEED  # Move forward
+            self.twist.angular.z = 0.0
             self.record_straight()
+
+        self.cmd_vel.publish(self.twist)
 
     def record_position(self):
         """Record current node and connections in graph"""
@@ -173,132 +168,135 @@ class MazeNavigator(Node):
         elif self.heading == 3:  #west
             self.current_node = (x - 1, y)
 
-    def plan_path(self):
-        """2nd ATTEMPT: after mapping using BFS"""
-        # need to change this to be a separate file
-        start = (0, 0)
-        end = self.find_farthest_point()
+    # for second attempt, separate file
+    # def plan_path(self):
+    #     """2nd ATTEMPT: after mapping using BFS"""
+    #     # need to change this to be a separate file
+    #     start = (0, 0)
+    #     end = self.find_farthest_point()
         
-        if end is None:
-            self.get_logger().warn("Could not determine end point, using farthest point")
-            end = self.find_farthest_point()
+    #     if end is None:
+    #         self.get_logger().warn("Could not determine end point, using farthest point")
+    #         end = self.find_farthest_point()
         
-        self.path = self.graph.bfs(start, end)
+    #     self.path = self.graph.bfs(start, end)
         
-        if self.path:
-            self.get_logger().info(f"Path planned: {self.path}")
-            self.path_index = 0
-        else:
-            self.get_logger().error("No path found to BLUE room")
+    #     if self.path:
+    #         self.get_logger().info(f"Path planned: {self.path}")
+    #         self.path_index = 0
+    #     else:
+    #         self.get_logger().error("No path found to BLUE room")
 
-    def follow_path(self, twist):
-        """Follow the planned BFS path"""
-        if not self.path or self.path_index >= len(self.path):
-            return
+    # for second attempt, separate file
+    # def follow_path(self, twist):
+    #     """Follow the planned BFS path"""
+    #     if not self.path or self.path_index >= len(self.path):
+    #         return
             
-        target_node = self.path[self.path_index]
+    #     target_node = self.path[self.path_index]
         
-        if self.current_node == target_node:
-            self.path_index += 1
-            if self.path_index >= len(self.path):
-                return
-            target_node = self.path[self.path_index]
+    #     if self.current_node == target_node:
+    #         self.path_index += 1
+    #         if self.path_index >= len(self.path):
+    #             return
+    #         target_node = self.path[self.path_index]
             
-        self.move_to_node(twist, target_node)
+    #     self.move_to_node(twist, target_node)
 
-    def move_to_node(self, twist, target_node):
-        """Move toward the target node"""
-        current_x, current_y = self.current_node
-        target_x, target_y = target_node
+    # for second attempt, different file
+    # def move_to_node(self, twist, target_node):
+    #     """Move toward the target node"""
+    #     current_x, current_y = self.current_node
+    #     target_x, target_y = target_node
 
-        '''
-        It should go something like this
-        Turn Decisions:
-        Current | Target | Turn
-        -----------------------------
-        North   | East   | Right 
-        East    | South  | Right   
-        South   | West   | Right 
-        West    | North  | Right 
-        North   | West   | Left 
+    #     '''
+    #     It should go something like this
+    #     Turn Decisions:
+    #     Current | Target | Turn
+    #     -----------------------------
+    #     North   | East   | Right 
+    #     East    | South  | Right   
+    #     South   | West   | Right 
+    #     West    | North  | Right 
+    #     North   | West   | Left 
 
-            0
-        3 <-  -> 1   NSWE directions look like this
-            2
-        '''
+    #         0
+    #     3 <-  -> 1   NSWE directions look like this
+    #         2
+    #     '''
         
-        # Determine required movement
-        # Need to move North
-        if target_y > current_y:
-            if self.heading == 0:  # Already facing North
-                twist.linear.x = FORWARD_SPEED
-            elif self.heading == 1:  # Facing East
-                twist.angular.z = TURN_SPEED  # Turn left
-            elif self.heading == 2:  # Facing South
-                twist.angular.z = TURN_SPEED  # Turn left (or right, could do 180)
-            elif self.heading == 3:  # Facing West
-                twist.angular.z = -TURN_SPEED  # Turn right
-         # Need to move East
-        elif target_x > current_x:
-            if self.heading == 0:  # Facing North
-                twist.angular.z = -TURN_SPEED  # Turn right
-            elif self.heading == 1:  # Already facing East
-                twist.linear.x = FORWARD_SPEED
-            elif self.heading == 2:  # Facing South
-                twist.angular.z = TURN_SPEED  # Turn left
-            elif self.heading == 3:  # Facing West
-                twist.angular.z = TURN_SPEED  # Turn left (or right, could do 180)
-        # Need to move South
-        elif target_y < current_y:
-            if self.heading == 0:  # Facing North
-                twist.linear.x = 0.0
-                twist.angular.z = TURN_SPEED  # Turn left (180° turn)
-            elif self.heading == 1:  # Facing East
-                twist.linear.x = 0.0
-                twist.angular.z = -TURN_SPEED  # Turn right
-            elif self.heading == 2:  # Already facing South
-                twist.linear.x = FORWARD_SPEED
-                twist.angular.z = 0.0
-            elif self.heading == 3:  # Facing West
-                twist.linear.x = 0.0
-                twist.angular.z = TURN_SPEED  # Turn left 
-        # Need to move West
-        elif target_x < current_x:
-            if self.heading == 0:  # Facing North
-                twist.linear.x = 0.0
-                twist.angular.z = TURN_SPEED  # Turn left
-            elif self.heading == 1:  # Facing East
-                twist.linear.x = 0.0
-                twist.angular.z = TURN_SPEED  # Turn left (180° turn)
-            elif self.heading == 2:  # Facing South
-                twist.linear.x = 0.0
-                twist.angular.z = -TURN_SPEED  # Turn right
-            elif self.heading == 3:  # Already facing West
-                twist.linear.x = FORWARD_SPEED
-                twist.angular.z = 0.0
+    #     # Determine required movement
+    #     # Need to move North
+    #     if target_y > current_y:
+    #         if self.heading == 0:  # Already facing North
+    #             twist.linear.x = FORWARD_SPEED
+    #         elif self.heading == 1:  # Facing East
+    #             twist.angular.z = TURN_SPEED  # Turn left
+    #         elif self.heading == 2:  # Facing South
+    #             twist.angular.z = TURN_SPEED  # Turn left (or right, could do 180)
+    #         elif self.heading == 3:  # Facing West
+    #             twist.angular.z = -TURN_SPEED  # Turn right
+    #      # Need to move East
+    #     elif target_x > current_x:
+    #         if self.heading == 0:  # Facing North
+    #             twist.angular.z = -TURN_SPEED  # Turn right
+    #         elif self.heading == 1:  # Already facing East
+    #             twist.linear.x = FORWARD_SPEED
+    #         elif self.heading == 2:  # Facing South
+    #             twist.angular.z = TURN_SPEED  # Turn left
+    #         elif self.heading == 3:  # Facing West
+    #             twist.angular.z = TURN_SPEED  # Turn left (or right, could do 180)
+    #     # Need to move South
+    #     elif target_y < current_y:
+    #         if self.heading == 0:  # Facing North
+    #             twist.linear.x = 0.0
+    #             twist.angular.z = TURN_SPEED  # Turn left (180° turn)
+    #         elif self.heading == 1:  # Facing East
+    #             twist.linear.x = 0.0
+    #             twist.angular.z = -TURN_SPEED  # Turn right
+    #         elif self.heading == 2:  # Already facing South
+    #             twist.linear.x = FORWARD_SPEED
+    #             twist.angular.z = 0.0
+    #         elif self.heading == 3:  # Facing West
+    #             twist.linear.x = 0.0
+    #             twist.angular.z = TURN_SPEED  # Turn left 
+    #     # Need to move West
+    #     elif target_x < current_x:
+    #         if self.heading == 0:  # Facing North
+    #             twist.linear.x = 0.0
+    #             twist.angular.z = TURN_SPEED  # Turn left
+    #         elif self.heading == 1:  # Facing East
+    #             twist.linear.x = 0.0
+    #             twist.angular.z = TURN_SPEED  # Turn left (180° turn)
+    #         elif self.heading == 2:  # Facing South
+    #             twist.linear.x = 0.0
+    #             twist.angular.z = -TURN_SPEED  # Turn right
+    #         elif self.heading == 3:  # Already facing West
+    #             twist.linear.x = FORWARD_SPEED
+    #             twist.angular.z = 0.0
                 
-        else:  # Already at target position
-            twist.linear.x = 0.0
-            twist.angular.z = 0.0
-            self.path_index += 1  # Move to next node in path
+    #     else:  # Already at target position
+    #         twist.linear.x = 0.0
+    #         twist.angular.z = 0.0
+    #         self.path_index += 1  # Move to next node in path
 
+    # for second attempt, dif file
+    # def find_farthest_point(self):
+    #     """Find the farthest explored point from start"""
+    #     start = (0, 0)
+    #     visited = set()
+    #     queue = deque([(start, 0)])
+    #     farthest = (start, 0)
 
-    def find_farthest_point(self):
-        """Find the farthest explored point from start"""
-        start = (0, 0)
-        visited = set()
-        queue = deque([(start, 0)])
-        farthest = (start, 0)
-
-        while queue:
-            node, dist = queue.popleft()
-            if dist > farthest[1]:
-                farthest = (node, dist)
-            for neighbor in self.graph.adj.get(node, []):
-                if neighbor not in visited:
-                    visited.add(neighbor)
-                    queue.append((neighbor, dist + 1))
-        return farthest[0]
+    #     while queue:
+    #         node, dist = queue.popleft()
+    #         if dist > farthest[1]:
+    #             farthest = (node, dist)
+    #         for neighbor in self.graph.adj.get(node, []):
+    #             if neighbor not in visited:
+    #                 visited.add(neighbor)
+    #                 queue.append((neighbor, dist + 1))
+    #     return farthest[0]
 
     def camera_callback(self, data):
         """Detect BLUE room"""
@@ -316,9 +314,8 @@ class MazeNavigator(Node):
             largest = max(contours, key=cv2.contourArea)
             if cv2.contourArea(largest) > 500:
                 if self.lidar_data and min(self.lidar_data[:30] + self.lidar_data[330:]) < END_DISTANCE:
-                    # self.at_end = True
-                    twist = Twist()
-                    self.cmd_vel.publish(twist)
+                    self.at_end = True
+                    self.cmd_vel.publish(self.twist)
                     self.get_logger().info("BLUE ROOM REACHED")
 
 def main(args=None):
