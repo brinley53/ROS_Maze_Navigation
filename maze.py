@@ -27,13 +27,13 @@ START_SPEED = 0.3  # New start speed for forward movement and drifting
 #DRIFT_DURATION = 1.5  # Time to complete the drift
 FORWARD_DISTANCE = 0.3  # Distance to move forward (meters)
 
-END_DISTANCE = 0.1 # Minimum distance from green wall (meters) (4 in ~ 0.1 m)
+END_DISTANCE = 0.1 # Minimum distance from blue wall (meters) (4 in ~ 0.1 m)
 FORWARD_SPEED = 0.2
 COLOR_TOLERANCE = 20  # For color detection centering
 
-#Green color range      *** CHANGE TO GREEN ROOM COLOR ****
-GREEN_LOWER = np.array([73, 155, 94])
-GREEN_UPPER = np.array([70, 255, 100])
+#BLUE color range      *** CHANGE TO BLUE ROOM COLOR ****
+BLUE_LOWER = np.array([73, 155, 94])
+BLUE_UPPER = np.array([70, 255, 100])
 
 class MazeNavigator(Node):
     def __init__(self, name):
@@ -188,7 +188,7 @@ class MazeNavigator(Node):
             self.get_logger().info(f"Path planned: {self.path}")
             self.path_index = 0
         else:
-            self.get_logger().error("No path found to green room")
+            self.get_logger().error("No path found to BLUE room")
 
     def bfs(self, start, end):
         """BFS algorithm"""
@@ -359,7 +359,7 @@ class MazeNavigator(Node):
         return max(self.visited, key=lambda p: p[0]**2 + p[1]**2)
 
     def camera_callback(self, data):
-        """Detect green room"""
+        """Detect BLUE room"""
         if self.at_end:
             return
             
@@ -367,8 +367,8 @@ class MazeNavigator(Node):
         lab_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
         blurred = cv2.GaussianBlur(lab_frame, (5, 5), 0)
         
-        green_mask = cv2.inRange(blurred, GREEN_LOWER, GREEN_UPPER)
-        contours, _ = cv2.findContours(green_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        BLUE_mask = cv2.inRange(blurred, BLUE_LOWER, BLUE_UPPER)
+        contours, _ = cv2.findContours(BLUE_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
         if contours:
             largest = max(contours, key=cv2.contourArea)
@@ -377,7 +377,7 @@ class MazeNavigator(Node):
                     self.at_end = True
                     twist = Twist()
                     self.cmd_vel.publish(twist)
-                    self.get_logger().info("GREEN ROOM REACHED")
+                    self.get_logger().info("BLUE ROOM REACHED")
 
 def main(args=None):
     rclpy.init(args=args)
