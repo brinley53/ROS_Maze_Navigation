@@ -49,8 +49,7 @@ class MazeNavigator(Node):
         self.at_end = False
         
         # Maze navigation variables
-        self.maze_graph = {}  # Graph representation of maze
-        self.visited = set()  # Visited nodes
+        self.graph = Graph()  # Graph representation of maze
         self.current_node = (0, 0)  # Current position in grid
         self.heading = 0  # 0=N, 1=E, 2=S, 3=W
         self.path = []  # BFS path to follow
@@ -131,20 +130,27 @@ class MazeNavigator(Node):
         right_clear = min(self.lidar_data[240:300]) > WALL_DISTANCE * 1.5
         left_clear = min(self.lidar_data[60:120]) > WALL_DISTANCE * 1.5
         
-        connections = []
-        if front_clear:
-            connections.append('front')
-        if right_clear:
-            connections.append('right')
-        if left_clear:
-            connections.append('left')
+        directions = {
+            'front': front_clear,
+            'right': right_clear,
+            'left': left_clear,
+        }
         
-        # Add reverse if we're not at start
-        if self.current_node != (0, 0):
-            connections.append('back')
-        
-        self.maze_graph[self.current_node] = connections
-        self.visited.add(self.current_node)
+        for dir_name, is_clear in directions.items():
+            if is_clear:
+                neighbor = self.get_neighbor_coordinates(self.current_node, self.heading, dir_name)
+                weight = -1 #update this to actually include edge weight
+                self.graph.add_edge(self.current_node, neighbor, weight)
+
+    def get_neighbor_coordinates(self, node, heading, direction):
+        x, y = node
+        dir_map = {
+            0: {'front': (x, y + 1), 'left': (x - 1, y), 'right': (x + 1, y)},
+            1: {'front': (x + 1, y), 'left': (x, y + 1), 'right': (x, y - 1)},
+            2: {'front': (x, y - 1), 'left': (x + 1, y), 'right': (x - 1, y)},
+            3: {'front': (x - 1, y), 'left': (x, y - 1), 'right': (x, y + 1)},
+        }
+        return dir_map[heading][direction]
 
     def record_turn(self, direction):
         """Update position after a turn"""
@@ -169,90 +175,21 @@ class MazeNavigator(Node):
 
     def plan_path(self):
         """2nd ATTEMPT: after mapping using BFS"""
+        # need to change this to be a separate file
         start = (0, 0)
         end = self.find_farthest_point()
         
         if end is None:
             self.get_logger().warn("Could not determine end point, using farthest point")
-            end = max(self.visited, key=lambda p: abs(p[0]) + abs(p[1]))
+            end = self.find_farthest_point()
         
-        self.path = self.bfs(start, end)
+        self.path = self.graph.bfs(start, end)
         
         if self.path:
             self.get_logger().info(f"Path planned: {self.path}")
             self.path_index = 0
         else:
             self.get_logger().error("No path found to BLUE room")
-
-    def bfs(self, start, end):
-        """BFS algorithm"""
-        queue = deque()
-        queue.append([start])
-        visited = set([start])
-        
-        while queue:
-            path = queue.popleft()
-            node = path[-1]
-            
-            if node == end:
-                return path
-                
-            for neighbor in self.get_neighbors(node):
-                if neighbor not in visited and neighbor in self.maze_graph:
-                    visited.add(neighbor)
-                    new_path = list(path)
-                    new_path.append(neighbor)
-                    queue.append(new_path)
-                    
-        return None
-
-    def get_neighbors(self, node):
-        """Get accessible neighbors from current node"""
-        x, y = node
-        neighbors = []
-        directions = self.maze_graph.get(node, [])
-        
-        if 'front' in directions:
-            if self.heading == 0:  # Facing North
-                neighbors.append((x, y + 1))
-            elif self.heading == 1:  # Facing East
-                neighbors.append((x + 1, y))
-            elif self.heading == 2:  # Facing South
-                neighbors.append((x, y - 1))
-            elif self.heading == 3:  # Facing West
-                neighbors.append((x - 1, y))
-                
-        if 'right' in directions:
-            if self.heading == 0:  # Facing North
-                neighbors.append((x + 1, y))
-            elif self.heading == 1:  # Facing East
-                neighbors.append((x, y - 1))
-            elif self.heading == 2:  # Facing South
-                neighbors.append((x - 1, y))
-            elif self.heading == 3:  # Facing West
-                neighbors.append((x, y + 1))
-                
-        if 'left' in directions:
-            if self.heading == 0:  # Facing North
-                neighbors.append((x - 1, y))
-            elif self.heading == 1:  # Facing East
-                neighbors.append((x, y + 1))
-            elif self.heading == 2:  # Facing South
-                neighbors.append((x + 1, y))
-            elif self.heading == 3:  # Facing West
-                neighbors.append((x, y - 1))
-                
-        if 'back' in directions:
-            if self.heading == 0:  # Facing North
-                neighbors.append((x, y - 1))
-            elif self.heading == 1:  # Facing East
-                neighbors.append((x - 1, y))
-            elif self.heading == 2:  # Facing South
-                neighbors.append((x, y + 1))
-            elif self.heading == 3:  # Facing West
-                neighbors.append((x + 1, y))
-                
-        return neighbors
 
     def follow_path(self, twist):
         """Follow the planned BFS path"""
@@ -348,9 +285,20 @@ class MazeNavigator(Node):
 
     def find_farthest_point(self):
         """Find the farthest explored point from start"""
-        if not self.visited:
-            return None
-        return max(self.visited, key=lambda p: p[0]**2 + p[1]**2)
+        start = (0, 0)
+        visited = set()
+        queue = deque([(start, 0)])
+        farthest = (start, 0)
+
+        while queue:
+            node, dist = queue.popleft()
+            if dist > farthest[1]:
+                farthest = (node, dist)
+            for neighbor in self.graph.adj.get(node, []):
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append((neighbor, dist + 1))
+        return farthest[0]
 
     def camera_callback(self, data):
         """Detect BLUE room"""
