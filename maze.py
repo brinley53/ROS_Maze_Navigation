@@ -27,9 +27,21 @@ END_DISTANCE = 0.1 # Minimum distance from blue wall (meters) (4 in ~ 0.1 m)
 FORWARD_SPEED = 0.2
 COLOR_TOLERANCE = 20  # For color detection centering
 
+TURN_DURATION = 2.0 # figure out what 90 egree is
+STEP_DURATION = 2.0
+
 #BLUE color range  
 BLUE_LOWER = np.array([73, 155, 94])
 BLUE_UPPER = np.array([70, 255, 100])
+
+ANGLES = {
+    "forward": 0,
+    "right": 90,
+    "backward": 180,
+    "left": 270
+}
+
+DIRECTIONS = ["forward", 'right', 'backward', 'left']
 
 class MazeNavigator(Node):
     def __init__(self, name):
@@ -41,9 +53,10 @@ class MazeNavigator(Node):
         self.camera_sub = self.create_subscription(
             Image, 'ascamera/camera_publisher/rgb0/image', 
             self.camera_callback, 1)
+        
         self.lidar_sub = self.create_subscription(
-            LaserScan, 'scan', self.lidar_callback, 1)
-            
+            LaserScan, 'scan_raw', self.lidar_callback, 1)
+
         self.bridge = CvBridge()
         self.lidar_data = []
         self.at_end = False
@@ -51,26 +64,29 @@ class MazeNavigator(Node):
         # Maze navigation variables
         self.graph = Graph()  # Graph representation of maze
         self.current_node = (0, 0)  # Current position in grid
+        self.previous_node = (0, 0)
         self.heading = 0  # 0=N, 1=E, 2=S, 3=W
-        self.path = []  # BFS path to follow
-        self.path_index = 0  # Current path position
+        # self.path = []  # BFS path to follow
+        # self.path_index = 0  # Current path position
         
         # State management
         self.following_wall = False
         self.first_attempt = True
         self.mapping_complete = False
+
         self.twist = Twist()
+
+        self.bfs()
 
 
     def lidar_callback(self, data):
         """Process Lidar data for wall detection and navigation"""
-        self.lidar_data = data.ranges
-        
-        # this may be what's preventing startng
-        if self.at_end:
+        if self.at_end or not self.first_attempt:
             return
         
-        self.map_maze()
+        self.lidar_data = data.ranges 
+       
+        # self.map_maze()
 
         # transfer this to a different file for second attempt
         # else:
@@ -83,17 +99,95 @@ class MazeNavigator(Node):
                 
         #     # Actual attempt
         #     self.follow_path(twist)
-            
+
+    def bfs(self):
+        # check directions
+        self.marked = [] #nothing is marked
+        queue = [self.current_node]
+
+        while len(queue) != 0:
+            self.current_node = queue.pop(0) #pop the front
+            self.marked.append(self.current_node)
+            self.move_to_node()
+            self.twist.angular.z = 0.0
+            self.twist.linear.x = 0.0
+            self.cmd_vel_pub.publish(self.twist)
+            neighbors = self.find_neighbors()
+            for neighbor in neighbors:
+                self.graph.add_edge(self.current_node, neighbor, -1)
+                if neighbor not in self.marked and neighbor not in queue:
+                    queue.append(neighbor)
+            self.previous_node = self.current_node
+
+    def move_to_node(self):
+        current_x, current_y = self.current_node
+        previous_x, previous_y = self.previous_node
+
+        if current_x - previous_x > 0:
+            # move right
+            self.twist.angular.z = TURN_SPEED
+            self.cmd_vel_pub.publish(self.twist)
+            time.sleep(TURN_DURATION)
+        elif current_x - previous_x < 0:
+            # move left
+            self.twist.angular.z = -TURN_SPEED
+            self.cmd_vel_pub.publish(self.twist)
+            time.sleep(TURN_DURATION)
+        elif current_y - previous_y < 0:
+            # move backward
+            self.twist.angular.z = -TURN_SPEED
+            self.cmd_vel_pub.publish(self.twist)
+            time.sleep(TURN_DURATION*2)
+
+        self.twist.angular.z = 0.0
+        self.twist.linear.x = MOVING_SPEED
+        self.cmd_vel_pub.publish(self.twist)
+        time.sleep(STEP_DURATION)
+
+    def find_neighbors(self):
+        open_directions = self.check_for_walls()
+        neighbors = []
+        current_x, current_y = self.current_node
+
+        for direction in open_directions:
+            neighbor = None
+            match direction:
+                case 'forward':
+                    neighbor = (current_x, current_y + 1)
+                case 'backward':
+                    neighbor = (current_x, current_y - 1)
+                case 'left':
+                    neighbor = (current_x - 1, current_y)
+                case 'right':
+                    neighbor = (current_x + 1, current_y)
+            if neighbor != None:
+                neighbors.append(neighbor)
+
+        return neighbors
         
-       
-    def map_maze(self):
-        """First attempt: Explore maze and build graph"""
-        if not self.following_wall:
-            # there is no find wall
-            self.find_wall()
-        else:
-            self.explore_with_wall_following()
-            self.record_position()
+    def check_for_walls(self):
+        # Make sure LIDAR has data
+        if not self.lidar_data or len(self.lidar_data) < 360:
+            return []
+        
+        open_directions = []
+        for direction in DIRECTIONS:
+            distance = self.lidar_data[ANGLES[direction]]
+            if distance > WALL_DISTANCE:
+                open_directions.append(direction)
+        
+        return open_directions
+            
+    def find_wall(self):
+        """Rotate in place until a wall is detected to begin wall-following"""
+        min_distance = min(self.lidar_data)
+        if min_distance < WALL_DISTANCE:
+            self.following_wall = True
+            self.get_logger().info("Wall found, starting wall following")
+            return
+
+        self.twist.angular.z = 0.3  # Rotate to find wall
+        self.cmd_vel_pub.publish(self.twist)
         
     def explore_with_wall_following(self):
         """Use right hand wall method"""
