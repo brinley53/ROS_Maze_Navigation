@@ -48,7 +48,7 @@ class MazeNavigator(Node):
         super().__init__(name)
         
         # ROS2 publishers and subscribers
-        self.cmd_vel = self.create_publisher(Twist, 'controller/cmd_vel', 1)
+        self.cmd_vel_pub = self.create_publisher(Twist, 'controller/cmd_vel', 1)
 
         self.camera_sub = self.create_subscription(
             Image, 'ascamera/camera_publisher/rgb0/image', 
