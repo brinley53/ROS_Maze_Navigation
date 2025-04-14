@@ -166,17 +166,37 @@ class MazeNavigator(Node):
         return neighbors
         
     def check_for_walls(self):
-        # Make sure LIDAR has data
+        #B attempt
         if not self.lidar_data or len(self.lidar_data) < 360:
-            return []
-        
+        return []
+
+        angle_increment = 2 * np.pi / len(self.lidar_data)  # Full circle / number of measurements
+        direction_angles = {
+            "forward": 0,
+            "right": -np.pi / 2,
+            "backward": np.pi,
+            "left": np.pi / 2
+        }
+
         open_directions = []
-        for direction in DIRECTIONS:
-            distance = self.lidar_data[ANGLES[direction]]
+        for direction, angle in direction_angles.items():
+            index = int((angle % (2 * np.pi)) / angle_increment)
+            distance = self.lidar_data[index]
             if distance > WALL_DISTANCE:
                 open_directions.append(direction)
-        
+
         return open_directions
+        # Make sure LIDAR has data
+        #if not self.lidar_data or len(self.lidar_data) < 360:
+            #return []
+        
+        #open_directions = []
+        #for direction in DIRECTIONS:
+            #distance = self.lidar_data[ANGLES[direction]]
+            #if distance > WALL_DISTANCE:
+                #open_directions.append(direction)
+        
+        #return open_directions
             
     def find_wall(self):
         """Rotate in place until a wall is detected to begin wall-following"""
