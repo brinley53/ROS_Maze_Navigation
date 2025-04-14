@@ -53,6 +53,7 @@ class MazeNavigator(Node):
         self.bridge = CvBridge()
         self.lidar_data = []
         self.at_end = False
+        self.start = True
         
         # Maze navigation variables
         self.graph = Graph()  # Graph representation of maze
@@ -69,8 +70,6 @@ class MazeNavigator(Node):
 
         self.twist = Twist()
 
-        self.bfs()
-
 
     def lidar_callback(self, data):
         """Process Lidar data for wall detection and navigation"""
@@ -78,6 +77,9 @@ class MazeNavigator(Node):
             return
         
         self.lidar_data = data.ranges 
+        if self.start:
+            self.bfs()
+            self.start = False
        
         # self.map_maze()
 
