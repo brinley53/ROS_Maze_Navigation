@@ -165,36 +165,18 @@ class MazeNavigator(Node):
         if not self.lidar_data or len(self.lidar_data) < 360:
             return []
 
-        # angle_increment = 2 * np.pi / len(self.lidar_data)  # Full circle / number of measurements
-        # direction_angles = {
-        #     "forward": 0,
-        #     "right": -np.pi / 2,
-        #     "backward": np.pi,
-        #     "left": np.pi / 2
-        # }
+        angle_increment = 2 * np.pi / len(self.lidar_data)  # Full circle / number of measurements
+        direction_angles = {
+            "forward": 0,
+            "right": -np.pi / 2,
+            "backward": np.pi,
+            "left": np.pi / 2
+        }
 
-        # open_directions = []
-        # for direction, angle in direction_angles.items():
-        #     index = int((angle % (2 * np.pi)) / angle_increment)
-        #     distance = self.lidar_data[index]
-        #     if distance > WALL_DISTANCE:
-        #         open_directions.append(direction)
-
-        # return open_directions
-        # Make sure LIDAR has data
-        if not self.lidar_data or len(self.lidar_data) < 360:
-            return []
-        
         open_directions = []
-        for direction in DIRECTIONS:
-            if direction == "front":
-                distance = self.lidar_data[len(self.lidar_data)//8:7*len(self.lidar_data)//8]
-            elif direction == "left":
-                distance = self.lidar_data[len(self.lidar_data)//4:len(self.lidar_data)//3]
-            elif direction == "right":
-                distance = self.lidar_data[3*len(self.lidar_data)//4:2*len(self.lidar_data)//3]
-            elif direction == "backward":
-                distance = self.lidar_data[len(self.lidar_data)//3:2*len(self.lidar_data)//3]
+        for direction, angle in direction_angles.items():
+            index = int((angle % (2 * np.pi)) / angle_increment)
+            distance = self.lidar_data[index]
             if distance > WALL_DISTANCE:
                 open_directions.append(direction)
         
