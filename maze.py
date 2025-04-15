@@ -113,7 +113,7 @@ class MazeNavigator(Node):
             if neighbor not in self.marked:
                 self.move_to_node(current, neighbor)
                 self._dfs(neighbor)
-                self.return_to_node(neighbor, current)
+                self.move_to_node(neighbor, current)
         return self.marked
 
     def move_to_node(self, current, neighbor):
