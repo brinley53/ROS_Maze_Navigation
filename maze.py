@@ -123,14 +123,18 @@ class MazeNavigator(Node):
         x, y = current
 
         for direction in open_directions:
-            if direction == 'forward':
-                neighbors.append((x, y + 1))
-            elif direction == 'backward':
-                neighbors.append((x, y - 1))
-            elif direction == 'left':
-                neighbors.append((x - 1, y))
-            elif direction == 'right':
-                neighbors.append((x + 1, y))
+            tempX = x
+            tempY = y
+            difference = self.heading - direction
+            if difference == 0:
+                tempY += 1
+            elif difference == -1 or difference == 3:
+                tempX -= 1
+            elif abs(difference) == 2:
+                tempY -= 1
+            elif difference == -3 or difference == 1:
+                tempX += 1
+            neighbors.append((tempX, tempY))
 
         return neighbors
 
@@ -185,9 +189,9 @@ class MazeNavigator(Node):
 
         angle_increment = 2 * np.pi / len(self.lidar_data)
         direction_angles = {
-            "forward": 0,
-            "right": -np.pi / 2,
-            "left": np.pi / 2
+            0: 0, #forward
+            3: -np.pi / 2, #right
+            1: np.pi / 2 #left
         }
 
         open_directions = []
