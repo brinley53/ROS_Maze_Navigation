@@ -16,19 +16,17 @@ import time
 from collections import deque   # BFS uses queue
 
 # Constants
-TURNING_SPEED = 0.5 / 100
-MOVING_SPEED = 0.1
-WALL_DISTANCE = 0.1  # Minimum distance from wall (meters) (4 in ~ 0.1 m)
+MOVING_SPEED = 0.2
+WALL_DISTANCE = 0.3  # Minimum distance from wall (meters) (4 in ~ 0.1 m). take car into account
 TURN_SPEED = 0.5  # Speed for turning away from walls
-START_SPEED = 0.3  # New start speed for forward movement and drifting
 FORWARD_DISTANCE = 0.3  # Distance to move forward (meters)
 
 END_DISTANCE = 0.1 # Minimum distance from blue wall (meters) (4 in ~ 0.1 m)
 FORWARD_SPEED = 0.2
 COLOR_TOLERANCE = 20  # For color detection centering
 
-TURN_DURATION = 2.0 # figure out what 90 egree is
-STEP_DURATION = 2.0
+TURN_DURATION = 1.57 # maybe 90 degrees?
+STEP_DURATION = 0.635 # maybe 5 inches?
 
 #BLUE color range  
 BLUE_LOWER = np.array([73, 155, 94])
@@ -78,22 +76,8 @@ class MazeNavigator(Node):
         
         self.lidar_data = data.ranges 
         if self.start:
-            self.bfs()
+            self.dfs((0, 0))
             self.start = False
-       
-        # self.map_maze()
-
-        # transfer this to a different file for second attempt
-        # else:
-        #     if self.first_attempt and not self.mapping_complete:
-        #         # Transition to execution phase
-        #         #  this stuff will never get called
-        #         self.mapping_complete = True
-        #         self.plan_path()
-        #         self.first_attempt = False
-                
-        #     # Actual attempt
-        #     self.follow_path(twist)
 
     def bfs(self):
         # check directions
@@ -114,18 +98,38 @@ class MazeNavigator(Node):
                     queue.append(neighbor)
             self.previous_node = self.current_node
 
-    def move_to_node(self):
-        current_x, current_y = self.current_node
-        previous_x, previous_y = self.previous_node
+    def dfs(self, start): 
+        self.marked = [] #make the marked list empty
+        return self._dfs(start)
+
+    def _dfs(self, current): #recursive private function for depth first search
+        #first, mark the current node
+        self.marked.append(current)
+        #now, search through every neighbor
+        neighbors = self.find_neighbors()
+        for neighbor in neighbors:
+            self.graph.add_edge(self.current_node, neighbor, -1)
+            #check to see if we've already visited that neighbor
+            if neighbor not in self.marked:
+                self.move_to_node(current, neighbor)
+                self._dfs(neighbor)
+                self.return_to_node(neighbor, current)
+        return self.marked
+
+    def move_to_node(self, current, neighbor):
+        if (current == neighbor):
+            return
+        current_x, current_y = current
+        previous_x, previous_y = neighbor
 
         if current_x - previous_x > 0:
             # move right
-            self.twist.angular.z = TURN_SPEED
+            self.twist.angular.z = -TURN_SPEED
             self.cmd_vel_pub.publish(self.twist)
             time.sleep(TURN_DURATION)
         elif current_x - previous_x < 0:
             # move left
-            self.twist.angular.z = -TURN_SPEED
+            self.twist.angular.z = TURN_SPEED
             self.cmd_vel_pub.publish(self.twist)
             time.sleep(TURN_DURATION)
         elif current_y - previous_y < 0:
@@ -140,6 +144,7 @@ class MazeNavigator(Node):
         time.sleep(STEP_DURATION)
 
     def find_neighbors(self):
+        # this works correctly
         open_directions = self.check_for_walls()
         neighbors = []
         current_x, current_y = self.current_node
@@ -161,6 +166,7 @@ class MazeNavigator(Node):
         return neighbors
         
     def check_for_walls(self):
+        #this gets the correct front/back/side but make sure that the ranges work
         #B attempt
         if not self.lidar_data or len(self.lidar_data) < 360:
             return []
@@ -169,15 +175,26 @@ class MazeNavigator(Node):
         direction_angles = {
             "forward": 0,
             "right": -np.pi / 2,
-            "backward": np.pi,
+            # "backward": np.pi, don't need backward
             "left": np.pi / 2
         }
 
         open_directions = []
+        range_deg = 10  # +/- 10 degrees around each direction
+        range_rad = np.deg2rad(range_deg)
+        range_indices = int(range_rad / angle_increment)
+
         for direction, angle in direction_angles.items():
-            index = int((angle % (2 * np.pi)) / angle_increment)
-            distance = self.lidar_data[index]
-            if distance > WALL_DISTANCE:
+            # Get central index for this direction
+            center_index = int((angle % (2 * np.pi)) / angle_increment)
+            
+            # Compute indices to average
+            indices = [(center_index + i) % len(self.lidar_data) for i in range(-range_indices, range_indices + 1)]
+            
+            # Average the distances in this range
+            distances = [self.lidar_data[i] for i in indices if not np.isnan(self.lidar_data[i])]
+            
+            if distances and np.mean(distances) > WALL_DISTANCE:
                 open_directions.append(direction)
         
         return open_directions
