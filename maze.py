@@ -25,8 +25,8 @@ END_DISTANCE = 0.1 # Minimum distance from blue wall (meters) (4 in ~ 0.1 m)
 FORWARD_SPEED = 0.2
 COLOR_TOLERANCE = 20  # For color detection centering
 
-TURN_DURATION = 1.57 # maybe 90 degrees?
-STEP_DURATION = 0.635 # maybe 5 inches?
+TURN_DURATION = 0.785 # maybe 45 degrees?
+STEP_DURATION = 0.1 # maybe 5 inches?
 
 #BLUE color range  
 BLUE_LOWER = np.array([73, 155, 94])
@@ -76,8 +76,7 @@ class MazeNavigator(Node):
         self.move_start_time = None
         self.move_target = None
 
-        self.create_timer(0.2, self.dfs_step)
-
+        self.create_timer(0.1, self.dfs_step)
 
     def lidar_callback(self, data):
         """Process Lidar data for wall detection and navigation"""
@@ -92,9 +91,9 @@ class MazeNavigator(Node):
 
         if self.moving:
             if time.time() - self.move_start_time >= STEP_DURATION:
-                self.stop_motion()
+                # self.stop_motion()
                 self.current_node = self.move_target
-                self.moving = False
+                # self.moving = False
             return
 
         if not self.dfs_stack:
@@ -125,15 +124,14 @@ class MazeNavigator(Node):
         for direction in open_directions:
             tempX = x
             tempY = y
-            difference = self.heading - direction
-            if difference == 0:
+            if direction == "N" and (self.heading==0 or self.heading==1 or self.heading==7) or direction == "NE" and (self.heading == 0 or self.heading==6 or self.heading==7) or direction == "E" and (self.heading==6 or self.heading==7 or self.heading==5) or direction=="SE" and (self.heading==4 or self.heading ==5 or self.heading==6) or direction=="S" and (self.heading==3 or self.heading==4 or self.heading==5) or direction=="SW" and (self.heading==3 or self.heading==4 or self.heading==2) or direction=="W" and (self.heading==3 or self.heading==1 or self.heading==2) or direction=="NW" and (self.heading==0 or self.heading==1 or self.heading==2):
                 tempY += 1
-            elif difference == -1 or difference == 3:
-                tempX -= 1
-            elif abs(difference) == 2:
-                tempY -= 1
-            elif difference == -3 or difference == 1:
+            elif direction == "E" and (self.heading==0 or self.heading==1 or self.heading==7) or direction == "SE" and (self.heading == 0 or self.heading==6 or self.heading==7) or direction == "S" and (self.heading==6 or self.heading==7 or self.heading==5) or direction=="SW" and (self.heading==4 or self.heading ==5 or self.heading==6) or direction=="W" and (self.heading==3 or self.heading==4 or self.heading==5) or direction=="NW" and (self.heading==3 or self.heading==4 or self.heading==2) or direction=="N" and (self.heading==3 or self.heading==1 or self.heading==2) or direction=="NE" and (self.heading==0 or self.heading==1 or self.heading==2):
                 tempX += 1
+            elif direction == "S" and (self.heading==0 or self.heading==1 or self.heading==7) or direction == "SW" and (self.heading == 0 or self.heading==6 or self.heading==7) or direction == "W" and (self.heading==6 or self.heading==7 or self.heading==5) or direction=="NW" and (self.heading==4 or self.heading ==5 or self.heading==6) or direction=="N" and (self.heading==3 or self.heading==4 or self.heading==5) or direction=="NE" and (self.heading==3 or self.heading==4 or self.heading==2) or direction=="E" and (self.heading==3 or self.heading==1 or self.heading==2) or direction=="SE" and (self.heading==0 or self.heading==1 or self.heading==2):
+                tempY -= 1
+            elif direction == "W" and (self.heading==0 or self.heading==1 or self.heading==7) or direction == "NW" and (self.heading == 0 or self.heading==6 or self.heading==7) or direction == "N" and (self.heading==6 or self.heading==7 or self.heading==5) or direction=="NE" and (self.heading==4 or self.heading ==5 or self.heading==6) or direction=="E" and (self.heading==3 or self.heading==4 or self.heading==5) or direction=="SE" and (self.heading==3 or self.heading==4 or self.heading==2) or direction=="S" and (self.heading==3 or self.heading==1 or self.heading==2) or direction=="SW" and (self.heading==0 or self.heading==1 or self.heading==2):
+                tempX -= 1
             neighbors.append((tempX, tempY))
 
         return neighbors
@@ -143,20 +141,28 @@ class MazeNavigator(Node):
         dy = neighbor[1] - previous[1]
 
         # Determine turn direction
-        if dx == 1: #right
-            desired_heading = 1
-        elif dx == -1: #left
-            desired_heading = 3
-        elif dy == 1: #forward
+        if dx == 0 and dy == 1: #forward
             desired_heading = 0
-        elif dy == -1: #backward
+        elif dx == 1 and dy == 1: 
+            desired_heading = 1
+        elif dx == 1 and dy == 0:
             desired_heading = 2
+        elif dx == 1 and dy == -1:
+            desired_heading = 3
+        elif dx == 0 and dy == -1:
+            desired_heading = 4
+        elif dx == -1 and dy == -1:
+            desired_heading = 5
+        elif dx == -1 and dy == 0:
+            desired_heading = 6
+        elif dx == -1 and dy == 1:
+            desired_heading = 7
         else:
             return
 
-        turns = (desired_heading - self.heading) % 4
-        if turns == 3:
-            turns = -1
+        turns = (desired_heading - self.heading) % 8
+        if turns > 4:
+            turns -= 8
 
         self.turn(turns)
         self.heading = desired_heading
@@ -189,13 +195,15 @@ class MazeNavigator(Node):
 
         angle_increment = 2 * np.pi / len(self.lidar_data)
         direction_angles = {
-            0: 0, #forward
-            3: -np.pi / 2, #right
-            1: np.pi / 2 #left
+            "N": 0, #forward
+
+            "S": np.pi, #backward
+            "E": -np.pi / 2, #right
+            "W": np.pi / 2 #left
         }
 
         open_directions = []
-        range_deg = 10
+        range_deg = 15
         range_rad = np.deg2rad(range_deg)
         range_indices = int(range_rad / angle_increment)
 
