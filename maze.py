@@ -196,7 +196,10 @@ class MazeNavigator(Node):
         angle_increment = 2 * np.pi / len(self.lidar_data)
         direction_angles = {
             "N": 0, #forward
-
+            "NE": -np.pi / 4,
+            "SE": -3 *np.pi / 4,
+            "SW": 3 *np.pi / 4,
+            "NW": np.pi / 4,
             "S": np.pi, #backward
             "E": -np.pi / 2, #right
             "W": np.pi / 2 #left
