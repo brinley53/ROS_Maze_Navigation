@@ -56,27 +56,27 @@ class MazeNavigator(Node):
 
         twist = Twist()
 
-        if right_dist > WALL_DISTANCE:
-            # Take the opening on the right
+        if left_dist > WALL_DISTANCE:
+            # Take the opening on the left
+            twist.angular.z = TURN_SPEED
+            twist.linear.x = 0.0
+            self.get_logger().info("Left is open - turning left")
+        elif front_dist < WALL_DISTANCE and left_dist < WALL_DISTANCE and right_dist > WALL_DISTANCE:
+            # Front and left blocked, right open
             twist.angular.z = -TURN_SPEED
             twist.linear.x = 0.0
-            self.get_logger().info("Right is open - turning right")
-        elif front_dist < WALL_DISTANCE and right_dist < WALL_DISTANCE and left_dist > WALL_DISTANCE:
-            # Right and front blocked, left open
+            self.get_logger().info("Front and left blocked - turning right")
+        elif front_dist < WALL_DISTANCE and left_dist < WALL_DISTANCE and right_dist < WALL_DISTANCE:
+            # All blocked - turn around (180°)
             twist.angular.z = TURN_SPEED
             twist.linear.x = 0.0
-            self.get_logger().info("Right and front blocked - turning left")
-        elif front_dist < WALL_DISTANCE and right_dist < WALL_DISTANCE and left_dist < WALL_DISTANCE:
-            # All blocked - turn around
-            twist.angular.z = TURN_SPEED
-            twist.linear.x = 0.0
-            self.get_logger().info("All directions blocked - turning around 180 deg")
-            time.sleep(1.5)  # Wait to complete turn 
+            self.get_logger().info("All directions blocked - turning around")
+            time.sleep(1.5)  # Adjust timing to complete 180 deg turn
         else:
             # Default: move forward
             twist.linear.x = MOVING_SPEED
 
-        self.cmd_vel_pub.publish(twist)
+            self.cmd_vel_pub.publish(twist)
 
     def lidar_callback(self, data):
         """Process LiDAR data for wall detection"""
