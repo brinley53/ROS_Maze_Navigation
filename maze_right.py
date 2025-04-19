@@ -25,6 +25,9 @@ BLUE_UPPER = np.array([70, 255, 100])
 class MazeNavigator(Node):
     def __init__(self, name):
         super().__init__(name)
+        self.turning_around = False
+        self.turn_start_time = None
+
         
         # ROS2 publishers and subscribers
         self.cmd_vel_pub = self.create_publisher(Twist, 'controller/cmd_vel', 1)
@@ -49,34 +52,46 @@ class MazeNavigator(Node):
         if self.at_end or not self.lidar_data:
             return
 
+        def safe_min(ranges):
+            clean = [r for r in ranges if np.isfinite(r) and r > 0.05]
+            return min(clean) if clean else float('inf')
+
         # Get LiDAR readings for right, front, and left
-        right_dist = min(self.lidar_data[270:300])  # Right side (90 deg from front)
-        front_dist = min(self.lidar_data[0:30] + self.lidar_data[330:360])  # Front
-        left_dist = min(self.lidar_data[60:90])     # Left side
+        right_dist = safe_min(self.lidar_data[270:300])  # Right side (90 deg from front)
+        front_dist = safe_min(self.lidar_data[0:30] + self.lidar_data[330:360])  # Front
+        left_dist = safe_min(self.lidar_data[60:90])     # Left side
+
+        self.get_logger().info(f"Distances - Front: {front_dist:.2f}, Left: {left_dist:.2f}, Right: {right_dist:.2f}")
 
         twist = Twist()
 
+        if self.turning_around:
+            # Keep turning for 1.5 seconds
+            if time.time() - self.turn_start_time < 1.5:
+                twist.angular.z = TURN_SPEED
+            else:
+                self.turning_around = False
+                self.get_logger().info("Completed 180 turn")
+            self.cmd_vel_pub.publish(twist)
+            return
+
         if right_dist > WALL_DISTANCE:
-            # Take the opening on the right
             twist.angular.z = -TURN_SPEED
-            twist.linear.x = 0.0
             self.get_logger().info("Right is open - turning right")
         elif front_dist < WALL_DISTANCE and right_dist < WALL_DISTANCE and left_dist > WALL_DISTANCE:
-            # Right and front blocked, left open
             twist.angular.z = TURN_SPEED
-            twist.linear.x = 0.0
             self.get_logger().info("Right and front blocked - turning left")
         elif front_dist < WALL_DISTANCE and right_dist < WALL_DISTANCE and left_dist < WALL_DISTANCE:
-            # All blocked - turn around
             twist.angular.z = TURN_SPEED
-            twist.linear.x = 0.0
-            self.get_logger().info("All directions blocked - turning around 180 deg")
-            time.sleep(1.5)  # Wait to complete turn 
+            self.turning_around = True
+            self.turn_start_time = time.time()
+            twist.angular.z = TURN_SPEED
         else:
-            # Default: move forward
             twist.linear.x = MOVING_SPEED
+            self.get_logger().info("Path clear - moving forward")
 
         self.cmd_vel_pub.publish(twist)
+
 
     def lidar_callback(self, data):
         """Process LiDAR data for wall detection"""
