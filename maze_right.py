@@ -56,30 +56,25 @@ class MazeNavigator(Node):
 
         twist = Twist()
 
-        # Right Wall Following Logic:
-        # 1. If too close to right wall, steer left
-        # 2. If too far from right wall, steer right
-        # 3. If front is blocked, turn left
-        # 4. Priority: Right > Forward > Left > Turn Around
-
-        if front_dist < WALL_DISTANCE:
-            # Obstacle ahead, turn left
+        if right_dist > WALL_DISTANCE:
+            # Take the opening on the right
+            twist.angular.z = -TURN_SPEED
+            twist.linear.x = 0.0
+            self.get_logger().info("Right is open - turning right")
+        elif front_dist < WALL_DISTANCE and right_dist < WALL_DISTANCE and left_dist > WALL_DISTANCE:
+            # Right and front blocked, left open
             twist.angular.z = TURN_SPEED
-            self.get_logger().info("Front blocked - turning left")
-        elif right_dist > WALL_DISTANCE + 0.1:
-            # Too far from right wall, steer right
-            twist.linear.x = MOVING_SPEED * 0.5
-            twist.angular.z = -TURN_SPEED * 0.3
-            self.get_logger().info("Too far from right wall - correcting")
-        elif right_dist < WALL_DISTANCE - 0.1:
-            # Too close to right wall, steer left
-            twist.linear.x = MOVING_SPEED * 0.5
-            twist.angular.z = TURN_SPEED * 0.3
-            self.get_logger().info("Too close to right wall - correcting")
+            twist.linear.x = 0.0
+            self.get_logger().info("Right and front blocked - turning left")
+        elif front_dist < WALL_DISTANCE and right_dist < WALL_DISTANCE and left_dist < WALL_DISTANCE:
+            # All blocked - turn around (180°)
+            twist.angular.z = TURN_SPEED
+            twist.linear.x = 0.0
+            self.get_logger().info("All directions blocked - turning around 180°")
+            time.sleep(1.5)  # Wait to complete turn (adjust time if needed)
         else:
-            # Move forward while maintaining distance
+            # Default: move forward
             twist.linear.x = MOVING_SPEED
-            self.get_logger().info("Moving forward along right wall")
 
         self.cmd_vel_pub.publish(twist)
 
