@@ -1,111 +1,6 @@
 #!/usr/bin/env python3
 
-class DisjointSet:
-    def __init__(self, size):
-        self.vertex = [i for i in range(size)]
-        self.weight = [1] * size
-        self._size = size
-
-    def validate(self, v1):
-        #Check if v1 is a valid index
-        return self._size > v1 and v1 >= 0
-
-    def size(self, v1):
-        #return the size of the set v1 belongs to
-        if self.validate(v1): #check to see if it's a valid index
-            return self.weight[self.find(v1)] #return size
-        return 0    
-
-    def parent(self, v1):
-        #return the parent of v1... if v1 is the root of a tree, return the negative size of the tree for which v1 is the root
-        if self.validate(v1): #check to see if it's a valid index
-            if self.vertex[v1] == v1:
-                return -self.weight[v1]
-            return self.vertex[v1]
-
-    def isConnected(self, v1, v2):
-        #check if given 2 vertex are connected
-        if self.validate(v1) and self.validate(v2):
-            #find the root of both sets
-            parent1 = self.find(v1)
-            parent2 = self.find(v2)
-            #if v1 and v2 have the same roots, they're connected
-            return parent1 == parent2
-
-    def find(self, v1):
-        #returns the root of the set v1 belongs to
-        if self.validate(v1):
-            #hold the index of the parent
-            prev = v1
-            parent = self.parent(v1)
-            while parent >= 0:
-                prev = parent
-                parent = self.parent(parent)
-            return prev
-       
-    def unionByWeight(self, v1, v2):
-        #connects two elements v1 and v2 together based on weight
-        root1 = self.find(v1)
-        root2 = self.find(v2)
-        if self.validate(v1) and self.validate(v2) and v1 != v2 and root1 != root2:
-            #if weight v1 > v2 then v2 merges into v1; root of v2 merges with root of v1
-            if self.size(v1) > self.size(v2):
-                self.weight[root1] += self.size(v2) #increase the weight of the root
-                self.vertex[root2] = root1 #change the parent of root2 to be root1
-            else:
-                self.weight[root2] += self.size(v1) #increase the weight of the root
-                self.vertex[root1] = root2
-
-
-import sys
-
-class Graph:
-    def __init__(self):
-        # len(self.graph) = vertices
-        # self.graph = [[0 for _ in range(vertices)] for _ in range(vertices)]
-        self.graph = {} # key = node, val = dictionary of neighbor and weight
-        self.marked = [] #make a list to keep track of vertices we've marked for traversals
-
-    def add_edge(self, u, v, w):
-        # u and v are vertices, w is weight
-        if u not in self.graph:
-            self.graph[u] = {}
-        if v not in self.graph:
-            self.graph[v] = {}
-        self.graph[u][v] = w
-        self.graph[v][u] = w
-
-    def dfs(self, start): 
-        self.marked = [] #make the marked list empty
-        return self._dfs(start)
-
-    def _dfs(self, current): #recursive private function for depth first search
-        #first, mark the current node
-        self.marked.append(current)
-        #now, search through every neighbor
-        for neighbor in self.graph[current]:
-            #check to see if we've already visited that neighbor
-            if neighbor not in self.marked:
-                self._dfs(neighbor)
-        return self.marked
-    
-    def bfs(self, start): 
-        self.marked = [] #nothing is marked
-        queue = [start] #have the start initially on the queue
-        current = start #initialize a current vertex
-        while len(queue) != 0: #while the queue is not empty
-            current = queue.pop(0) #pop the front
-            self.marked.append(current) #mark the current one
-            for neighbor in self.graph[current]: 
-            	if neighbor not in self.marked and neighbor not in queue:
-                    queue.append(neighbor) #add every neighbor we haven't already done to the queue
-        return self.marked
-
-    def dijkstra(self, src):
-        # Stores shortest distance.
-        dist = {node: sys.mazsize for node in self.graph}
-        # Shortest distance to the same node is 0.
-        dist[src] = 0
+from graph import Graph
 
 import rclpy
 from rclpy.node import Node
@@ -121,8 +16,8 @@ import time
 from collections import deque   # BFS uses queue
 
 # Constants
-MOVING_SPEED = 0.3
-WALL_DISTANCE = 0.3  # Minimum distance from wall (meters) (4 in ~ 0.1 m)
+MOVING_SPEED = 0.2
+WALL_DISTANCE = 0.3  # Minimum distance from wall (meters) (4 in ~ 0.1 m). take car into account
 TURN_SPEED = 1.0  # Speed for turning away from walls
 FORWARD_DISTANCE = 0.3  # Distance to move forward (meters)
 
@@ -130,8 +25,8 @@ END_DISTANCE = 0.1 # Minimum distance from blue wall (meters) (4 in ~ 0.1 m)
 FORWARD_SPEED = 0.2
 COLOR_TOLERANCE = 20  # For color detection centering
 
-TURN_DURATION = 0.785 # figure out what 90 egree is
-STEP_DURATION = 0.15
+TURN_DURATION = 0.785 # maybe 45 degrees?
+STEP_DURATION = 0.1 # maybe 5 inches?
 
 #BLUE color range  
 BLUE_LOWER = np.array([73, 155, 94])
@@ -165,6 +60,10 @@ class MazeNavigator(Node):
         self.heading = 0  # 0=N, 1=E, 2=S, 3=W
         # self.path = []  # BFS path to follow
         # self.path_index = 0  # Current path position
+
+        self.marked = set()
+        self.dfs_stack = [self.current_node]
+        self.backtrack_stack = []
         
         # State management
         self.following_wall = False
@@ -172,19 +71,12 @@ class MazeNavigator(Node):
         self.mapping_complete = False
 
         self.twist = Twist()
-        
-        self.marked = set()
-        self.dfs_stack = [self.current_node]
-        self.backtrack_stack = []
-
 
         self.moving = False
         self.move_start_time = None
         self.move_target = None
 
-        self.create_timer(0.15, self.dfs_step)
-        
-        
+        self.create_timer(0.1, self.dfs_step)
 
     def lidar_callback(self, data):
         """Process Lidar data for wall detection and navigation"""
@@ -192,12 +84,11 @@ class MazeNavigator(Node):
             return
         
         self.lidar_data = data.ranges 
-        
 
     def dfs_step(self):
-        if self.at_end or not self.lidar_data:
+        # If we?re still moving, wait for that step to finish
+        if not self.lidar_data:
             return
-
         if self.moving:
             if time.time() - self.move_start_time >= STEP_DURATION:
                 self.stop_motion()
@@ -205,33 +96,31 @@ class MazeNavigator(Node):
                 self.moving = False
             return
 
+        # If stack is empty, we?re done
         if not self.dfs_stack:
             self.get_logger().info("DFS complete!")
             return
 
         current = self.dfs_stack[-1]
-        if current not in self.marked or current.:
+
+        # Mark the node on first visit
+        if current not in self.marked:
             self.marked.add(current)
-            neighbors = self.find_neighbors(current)
-            for neighbor in neighbors:
-                self.graph.add_edge(current, neighbor, -1)
-                if neighbor not in self.marked and neighbor not in self.dfs_stack:
-                    self.dfs_stack.append(neighbor)
-                    if self.move_to_node(current, neighbor):
-                    	return
-                    else:
-                    	self.dfs_stack.pop()
-        else:
-            self.get_logger().info(f"Backtracking from {current}")
-            self.dfs_stack.pop()
-            if self.dfs_stack:
-                prev = self.dfs_stack[-1]
-                self.move_to_node(current, prev)
-                
-                
+
+        # Try to push an unvisited neighbor
+        for nbr in self.find_neighbors(current):
+            if nbr not in self.marked and nbr not in self.dfs_stack:
+                self.dfs_stack.append(nbr)
+                self.move_to_node(current, nbr)
+                return
+
+        # No unvisited neighbors ? backtrack
+        self.dfs_stack.pop()
+        if self.dfs_stack:
+            prev = self.dfs_stack[-1]
+            self.move_to_node(current, prev)
+
     def find_neighbors(self, current):
-
-
         open_directions = self.check_for_walls()
         neighbors = []
         x, y = current
@@ -241,18 +130,16 @@ class MazeNavigator(Node):
             tempY = y
             if direction == "N" and (self.heading==0 or self.heading==1 or self.heading==7) or direction == "NE" and (self.heading == 0 or self.heading==6 or self.heading==7) or direction == "E" and (self.heading==6 or self.heading==7 or self.heading==5) or direction=="SE" and (self.heading==4 or self.heading ==5 or self.heading==6) or direction=="S" and (self.heading==3 or self.heading==4 or self.heading==5) or direction=="SW" and (self.heading==3 or self.heading==4 or self.heading==2) or direction=="W" and (self.heading==3 or self.heading==1 or self.heading==2) or direction=="NW" and (self.heading==0 or self.heading==1 or self.heading==2):
                 tempY += 1
-            elif direction == "E" and (self.heading==0 or self.heading==1 or self.heading==7) or direction == "SE" and (self.heading == 0 or self.heading==6 or self.heading==7) or direction == "S" and (self.heading==6 or self.heading==7 or self.heading==5) or direction=="SW" and (self.heading==4 or self.heading ==5 or self.heading==6) or direction=="W" and (self.heading==3 or self.heading==4 or self.heading==5) or direction=="NW" and (self.heading==3 or self.heading==4 or self.heading==2) or direction=="N" and (self.heading==3 or self.heading==1 or self.heading==2) or direction=="NE" and (self.heading==0 or self.heading==1 or self.heading==2):
+            if direction == "E" and (self.heading==0 or self.heading==1 or self.heading==7) or direction == "SE" and (self.heading == 0 or self.heading==6 or self.heading==7) or direction == "S" and (self.heading==6 or self.heading==7 or self.heading==5) or direction=="SW" and (self.heading==4 or self.heading ==5 or self.heading==6) or direction=="W" and (self.heading==3 or self.heading==4 or self.heading==5) or direction=="NW" and (self.heading==3 or self.heading==4 or self.heading==2) or direction=="N" and (self.heading==3 or self.heading==1 or self.heading==2) or direction=="NE" and (self.heading==0 or self.heading==1 or self.heading==2):
                 tempX += 1
-            elif direction == "S" and (self.heading==0 or self.heading==1 or self.heading==7) or direction == "SW" and (self.heading == 0 or self.heading==6 or self.heading==7) or direction == "W" and (self.heading==6 or self.heading==7 or self.heading==5) or direction=="NW" and (self.heading==4 or self.heading ==5 or self.heading==6) or direction=="N" and (self.heading==3 or self.heading==4 or self.heading==5) or direction=="NE" and (self.heading==3 or self.heading==4 or self.heading==2) or direction=="E" and (self.heading==3 or self.heading==1 or self.heading==2) or direction=="SE" and (self.heading==0 or self.heading==1 or self.heading==2):
+            if direction == "S" and (self.heading==0 or self.heading==1 or self.heading==7) or direction == "SW" and (self.heading == 0 or self.heading==6 or self.heading==7) or direction == "W" and (self.heading==6 or self.heading==7 or self.heading==5) or direction=="NW" and (self.heading==4 or self.heading ==5 or self.heading==6) or direction=="N" and (self.heading==3 or self.heading==4 or self.heading==5) or direction=="NE" and (self.heading==3 or self.heading==4 or self.heading==2) or direction=="E" and (self.heading==3 or self.heading==1 or self.heading==2) or direction=="SE" and (self.heading==0 or self.heading==1 or self.heading==2):
                 tempY -= 1
-            elif direction == "W" and (self.heading==0 or self.heading==1 or self.heading==7) or direction == "NW" and (self.heading == 0 or self.heading==6 or self.heading==7) or direction == "N" and (self.heading==6 or self.heading==7 or self.heading==5) or direction=="NE" and (self.heading==4 or self.heading ==5 or self.heading==6) or direction=="E" and (self.heading==3 or self.heading==4 or self.heading==5) or direction=="SE" and (self.heading==3 or self.heading==4 or self.heading==2) or direction=="S" and (self.heading==3 or self.heading==1 or self.heading==2) or direction=="SW" and (self.heading==0 or self.heading==1 or self.heading==2):
+            if direction == "W" and (self.heading==0 or self.heading==1 or self.heading==7) or direction == "NW" and (self.heading == 0 or self.heading==6 or self.heading==7) or direction == "N" and (self.heading==6 or self.heading==7 or self.heading==5) or direction=="NE" and (self.heading==4 or self.heading ==5 or self.heading==6) or direction=="E" and (self.heading==3 or self.heading==4 or self.heading==5) or direction=="SE" and (self.heading==3 or self.heading==4 or self.heading==2) or direction=="S" and (self.heading==3 or self.heading==1 or self.heading==2) or direction=="SW" and (self.heading==0 or self.heading==1 or self.heading==2):
                 tempX -= 1
             neighbors.append((tempX, tempY))
-                
-        print(neighbors)
 
         return neighbors
-        
+
     def move_to_node(self, previous, neighbor):
         dx = neighbor[0] - previous[0]
         dy = neighbor[1] - previous[1]
@@ -291,45 +178,11 @@ class MazeNavigator(Node):
         self.move_start_time = time.time()
         self.move_target = neighbor
 
-    def turn_by_angle(self, angle_radians):
-        if self.orientation_yaw is None:
-            self.get_logger().warn("Current yaw unknown. Skipping turn.")
-            return
-
-        start_yaw = self.orientation_yaw
-        target_yaw = normalize_angle(start_yaw + angle_radians)
-        self.get_logger().info(f"Turning from {start_yaw:.2f} to {target_yaw:.2f}")
-
-        rate = self.create_rate(10)  # 10 Hz loop
-        max_angular_speed = 0.5  # radians/sec
-        min_angular_speed = 0.1
-        tolerance = 0.05  # radians
-
-        while rclpy.ok():
-            current_yaw = self.orientation_yaw
-            error = self.normalize_angle(target_yaw - current_yaw)
-
-            if abs(error) < tolerance:
-                break
-
-            # Proportional control
-            angular_speed = max(min_angular_speed, min(max_angular_speed, 1.5 * abs(error)))
-            twist = Twist()
-            twist.angular.z = angular_speed if error > 0 else -angular_speed
-            self.cmd_pub.publish(twist)
-
-            rate.sleep()
-
-        # Stop turning
-        twist = Twist()
-        self.cmd_pub.publish(twist)
-        self.get_logger().info("Turn complete.")
-        
     def turn(self, turns):
         if turns == 0:
             return
         twist = Twist()
-        twist.angular.z = -TURN_SPEED if turns > 0 else TURN_SPEED
+        twist.angular.z = TURN_SPEED if turns > 0 else -TURN_SPEED
         duration = abs(turns) * TURN_DURATION
         self.cmd_vel_pub.publish(twist)
         time.sleep(duration)
@@ -339,7 +192,7 @@ class MazeNavigator(Node):
         self.twist.linear.x = 0.0
         self.twist.angular.z = 0.0
         self.cmd_vel_pub.publish(self.twist)
-        
+
     def check_for_walls(self):
         if not self.lidar_data or len(self.lidar_data) < 360:
             return []
@@ -365,12 +218,11 @@ class MazeNavigator(Node):
             center_index = int((angle % (2 * np.pi)) / angle_increment)
             indices = [(center_index + i) % len(self.lidar_data) for i in range(-range_indices, range_indices + 1)]
             distances = [self.lidar_data[i] for i in indices if not np.isnan(self.lidar_data[i])]
-            if distances and np.min(distances) > WALL_DISTANCE:
+            if distances and np.mean(distances) > WALL_DISTANCE:
                 open_directions.append(direction)
 
         return open_directions
 
-        
     def camera_callback(self, data):
         """Detect BLUE room"""
         if self.at_end:
