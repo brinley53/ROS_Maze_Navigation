@@ -230,7 +230,7 @@ class MazeNavigator(Node):
                 open_directions.append(direction)
                 
         if len(open_directions) > 1 and open_directions[0] == "E":
-            if self.steps < 5:
+            if self.steps < 3:
                 open_directions.pop()
         print(open_directions)
 
