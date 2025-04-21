@@ -177,16 +177,38 @@ class MazeNavigator(Node):
         self.move_start_time = time.time()
         self.move_target = neighbor
 
+    # def turn(self, turns):
+    #     if turns == 0:
+    #         return
+    #     self.turning = True
+    #     self.steps = 0
+    #     twist = Twist()
+    #     twist.angular.z = -TURN_SPEED if turns > 0 else TURN_SPEED
+    #     duration = abs(turns) * TURN_DURATION
+    #     self.cmd_vel_pub.publish(twist)
+    #     time.sleep(duration)
+    #     self.cmd_vel_pub.publish(Twist())
+    #     self.turning = False
+
     def turn(self, turns):
         if turns == 0:
             return
+    
+        # mark that we’re now in a turning state
         self.turning = True
         self.steps = 0
+    
         twist = Twist()
         twist.angular.z = -TURN_SPEED if turns > 0 else TURN_SPEED
         duration = abs(turns) * TURN_DURATION
         self.cmd_vel_pub.publish(twist)
-        time.sleep(duration)
+    
+        # schedule a one‑shot timer to end the turn
+        # NOTE: oneshot=True makes it fire exactly once
+        self.create_timer(duration, self._end_turn, oneshot=True)
+    
+    def _end_turn(self):
+        # stop rotation and clear the flag
         self.cmd_vel_pub.publish(Twist())
         self.turning = False
 
