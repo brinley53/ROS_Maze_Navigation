@@ -65,6 +65,7 @@ class MazeNavigator(Node):
 
         self.twist = Twist()
         self.steps = 0
+        self.turning = False
 
         self.moving = False
         self.move_start_time = None
@@ -83,7 +84,7 @@ class MazeNavigator(Node):
         # If we?re still moving, wait for that step to finish
         if not self.lidar_data:
             return
-        if self.moving:
+        if self.moving or self.turning:
             if time.time() - self.move_start_time >= STEP_DURATION:
                 self.stop_motion()
                 self.current_node = self.move_target
@@ -179,6 +180,7 @@ class MazeNavigator(Node):
     def turn(self, turns):
         if turns == 0:
             return
+        self.turning = True
         self.steps = 0
         twist = Twist()
         twist.angular.z = -TURN_SPEED if turns > 0 else TURN_SPEED
@@ -186,6 +188,7 @@ class MazeNavigator(Node):
         self.cmd_vel_pub.publish(twist)
         time.sleep(duration)
         self.cmd_vel_pub.publish(Twist())
+        self.turning = False
 
     def stop_motion(self):
         self.twist.linear.x = 0.0
